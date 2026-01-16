@@ -5,7 +5,7 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
-import { User as SelectUser } from "@shared/schema";
+import { User as SelectUser, loginSchema } from "@shared/schema";
 
 declare global {
   namespace Express {
@@ -35,7 +35,7 @@ export function setupAuth(app: Express) {
     saveUninitialized: false,
     store: storage.sessionStore,
     cookie: {
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      maxAge: 24 * 60 * 60 * 1000, // Default: 1 day
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
@@ -107,6 +107,13 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
+    // Validate request body
+    const parseResult = loginSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).send("Invalid login data");
+    }
+    const { rememberMe } = parseResult.data;
+    
     passport.authenticate("local", (err: Error | null, user: SelectUser | false, info: { message: string } | undefined) => {
       if (err) return next(err);
       if (!user) {
@@ -114,6 +121,16 @@ export function setupAuth(app: Express) {
       }
       req.login(user, (err) => {
         if (err) return next(err);
+        
+        // Set session expiration based on rememberMe option
+        if (rememberMe) {
+          // 30 days for persistent sessions
+          req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
+        } else {
+          // 1 day for regular sessions
+          req.session.cookie.maxAge = 24 * 60 * 60 * 1000;
+        }
+        
         res.status(200).json(user);
       });
     })(req, res, next);

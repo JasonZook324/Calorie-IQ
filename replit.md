@@ -89,6 +89,7 @@ DATABASE_URL=$NEON_DATABASE_URL npm run db:push
 ## Recent Changes
 
 ### January 2026
+- **Keep Me Logged In**: Added "Keep me logged in" checkbox to login form for 30-day persistent sessions (default is 1 day)
 - **Entry Editing**: Added ability to edit logged entries (calories, weight, macros) via edit button in the entries list
 - **Metrics Calculation**: Requires at least 2 weight entries before calculating weight-based metrics (maintenance calories, daily deficit, weight change)
 - **Weight Optional**: Weight field is now optional when logging entries

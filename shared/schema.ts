@@ -45,12 +45,14 @@ export const insertDailyEntrySchema = createInsertSchema(dailyEntries).omit({
 });
 
 // Extended validation schemas
-export const loginSchema = insertUserSchema.extend({
+export const registerSchema = insertUserSchema.extend({
   username: z.string().min(3, "Username must be at least 3 characters"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-export const registerSchema = loginSchema;
+export const loginSchema = registerSchema.extend({
+  rememberMe: z.boolean().optional(),
+});
 
 export const dailyEntryFormSchema = insertDailyEntrySchema.extend({
   date: z.string().min(1, "Date is required"),
