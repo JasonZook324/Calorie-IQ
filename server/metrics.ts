@@ -20,10 +20,22 @@ export function calculateMetrics(entries: DailyEntry[]): CalculatedMetrics {
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
 
-  const last7Days = sortedEntries.slice(-7);
-  const last14Days = sortedEntries.slice(-14);
+  // Get the most recent entry date as reference point
+  const mostRecentDate = sortedEntries.length > 0 
+    ? new Date(sortedEntries[sortedEntries.length - 1].date)
+    : new Date();
+  
+  // Filter entries by actual calendar days (not just last N entries)
+  const sevenDaysAgo = new Date(mostRecentDate);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  
+  const fourteenDaysAgo = new Date(mostRecentDate);
+  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
 
-  // Calorie averages use all entries
+  const last7Days = sortedEntries.filter(e => new Date(e.date) >= sevenDaysAgo);
+  const last14Days = sortedEntries.filter(e => new Date(e.date) >= fourteenDaysAgo);
+
+  // Calorie averages use all entries within the date range
   const rollingAvgCalories7Day = last7Days.length > 0
     ? last7Days.reduce((sum, e) => sum + e.calories, 0) / last7Days.length
     : null;
@@ -32,9 +44,8 @@ export function calculateMetrics(entries: DailyEntry[]): CalculatedMetrics {
     ? last14Days.reduce((sum, e) => sum + e.calories, 0) / last14Days.length
     : null;
 
-  // Weight-based calculations only use entries WITH weight values
-  const entriesWithWeight = sortedEntries.filter(e => e.weight !== null && e.weight !== undefined);
-  const last7DaysWithWeight = entriesWithWeight.slice(-7);
+  // Weight-based calculations only use entries WITH weight values within the last 7 days
+  const last7DaysWithWeight = last7Days.filter(e => e.weight !== null && e.weight !== undefined);
 
   // Require at least 2 weight entries for weight-based calculations
   let rollingAvgWeight7Day: number | null = null;
