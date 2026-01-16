@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, addDays } from "date-fns";
 import { DailyEntry, CalculatedMetrics } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { TrendingDown, TrendingUp, Scale } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -60,6 +63,8 @@ function CustomTooltip({ active, payload, label }: TooltipProps<number, string>)
 }
 
 export function WeightChart() {
+  const [showProjections, setShowProjections] = useState(true);
+  
   const { data: entries, isLoading: entriesLoading } = useQuery<DailyEntry[]>({
     queryKey: ["/api/entries"],
   });
@@ -130,8 +135,8 @@ export function WeightChart() {
 
   const chartData: ChartDataPoint[] = [
     ...actualData,
-    ...(bridgePoint ? [bridgePoint] : []),
-    ...projectedData,
+    ...(showProjections && bridgePoint ? [bridgePoint] : []),
+    ...(showProjections ? projectedData : []),
   ].filter((item, index, arr) => {
     if (index === 0) return true;
     return item.fullDate !== arr[index - 1].fullDate || item.isProjected !== arr[index - 1].isProjected;
@@ -139,7 +144,7 @@ export function WeightChart() {
 
   const allWeights = [
     ...sortedEntries.map((e) => e.weight as number),
-    ...projectedData.map((p) => p.projectedWeight as number),
+    ...(showProjections ? projectedData.map((p) => p.projectedWeight as number) : []),
   ].filter(Boolean);
   
   const minWeight = allWeights.length ? Math.floor(Math.min(...allWeights) - 2) : 150;
@@ -150,6 +155,8 @@ export function WeightChart() {
   const weightChange = firstWeight && lastWeight ? lastWeight - firstWeight : 0;
   const isLosing = weightChange < 0;
 
+  const hasProjectionData = sortedEntries.length >= 2 && projectedData.length > 0;
+
   return (
     <Card>
       <CardHeader className="pb-4">
@@ -159,28 +166,47 @@ export function WeightChart() {
               <Scale className="h-5 w-5" />
               Weight Trend
             </CardTitle>
-            <CardDescription>Last 30 days + 2-week projection</CardDescription>
+            <CardDescription>
+              {showProjections && hasProjectionData ? "Last 30 days + 2-week projection" : "Last 30 days"}
+            </CardDescription>
           </div>
-          {sortedEntries.length >= 2 && (
-            <div className={`flex items-center gap-1 text-sm font-medium ${isLosing ? "text-chart-1" : "text-chart-5"}`}>
-              {isLosing ? (
-                <TrendingDown className="h-4 w-4" />
-              ) : (
-                <TrendingUp className="h-4 w-4" />
-              )}
-              {Math.abs(weightChange).toFixed(1)} lbs
-            </div>
-          )}
+          <div className="flex items-center gap-4">
+            {sortedEntries.length >= 2 && (
+              <div className={`flex items-center gap-1 text-sm font-medium ${isLosing ? "text-chart-1" : "text-chart-5"}`}>
+                {isLosing ? (
+                  <TrendingDown className="h-4 w-4" />
+                ) : (
+                  <TrendingUp className="h-4 w-4" />
+                )}
+                {Math.abs(weightChange).toFixed(1)} lbs
+              </div>
+            )}
+          </div>
         </div>
-        {sortedEntries.length >= 2 && projectedData.length > 0 && (
-          <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-chart-1" />
-              <span>Actual weight</span>
+        {hasProjectionData && (
+          <div className="flex items-center justify-between gap-4 mt-3 flex-wrap">
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-chart-1" />
+                <span>Actual weight</span>
+              </div>
+              {showProjections && (
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-chart-4" />
+                  <span>Projected</span>
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-chart-4" />
-              <span>Projected (based on trend)</span>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="show-projections"
+                checked={showProjections}
+                onCheckedChange={setShowProjections}
+                data-testid="switch-show-projections"
+              />
+              <Label htmlFor="show-projections" className="text-xs cursor-pointer">
+                Show projection
+              </Label>
             </div>
           </div>
         )}
