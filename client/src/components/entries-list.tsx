@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, startOfWeek, startOfMonth, startOfYear } from "date-fns";
 import { Trash2, Loader2, Scale, Flame, Beef, Wheat, Droplet, Pencil } from "lucide-react";
 import { DailyEntry } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,8 +10,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+
+type TimeFilter = "all" | "year" | "month" | "week";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +38,7 @@ import {
 export function EntriesList() {
   const { toast } = useToast();
   const [editingEntry, setEditingEntry] = useState<DailyEntry | null>(null);
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const [editForm, setEditForm] = useState({
     calories: "",
     weight: "",
@@ -158,13 +162,62 @@ export function EntriesList() {
     ? [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     : [];
 
+  const filterEntries = (entries: DailyEntry[], filter: TimeFilter): DailyEntry[] => {
+    if (filter === "all") return entries;
+    
+    const now = new Date();
+    let startDate: Date;
+    
+    switch (filter) {
+      case "week":
+        startDate = startOfWeek(now, { weekStartsOn: 0 });
+        break;
+      case "month":
+        startDate = startOfMonth(now);
+        break;
+      case "year":
+        startDate = startOfYear(now);
+        break;
+      default:
+        return entries;
+    }
+    
+    return entries.filter(entry => parseISO(entry.date) >= startDate);
+  };
+
+  const filteredEntries = filterEntries(sortedEntries, timeFilter);
+
+  const getFilterLabel = (filter: TimeFilter): string => {
+    switch (filter) {
+      case "week": return "This Week";
+      case "month": return "This Month";
+      case "year": return "This Year";
+      default: return "All Time";
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="pb-4">
-        <CardTitle>Recent Entries</CardTitle>
-        <CardDescription>
-          {sortedEntries.length} {sortedEntries.length === 1 ? "entry" : "entries"} logged
-        </CardDescription>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <CardTitle>Recent Entries</CardTitle>
+            <CardDescription>
+              {filteredEntries.length} of {sortedEntries.length} {sortedEntries.length === 1 ? "entry" : "entries"}
+            </CardDescription>
+          </div>
+          <Select value={timeFilter} onValueChange={(v) => setTimeFilter(v as TimeFilter)}>
+            <SelectTrigger className="w-[130px]" data-testid="select-time-filter">
+              <SelectValue placeholder="Filter by..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="year">This Year</SelectItem>
+              <SelectItem value="month">This Month</SelectItem>
+              <SelectItem value="week">This Week</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </CardHeader>
       <CardContent>
         {sortedEntries.length === 0 ? (
@@ -177,10 +230,19 @@ export function EntriesList() {
               Start logging your daily calories and weight to see your progress
             </p>
           </div>
+        ) : filteredEntries.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
+              <Flame className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              No entries for {getFilterLabel(timeFilter).toLowerCase()}
+            </p>
+          </div>
         ) : (
           <ScrollArea className="h-[400px] pr-4">
             <div className="space-y-3">
-              {sortedEntries.map((entry) => (
+              {filteredEntries.map((entry) => (
                 <div
                   key={entry.id}
                   className="p-4 rounded-lg border bg-card hover-elevate"
