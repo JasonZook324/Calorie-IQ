@@ -85,3 +85,13 @@ DATABASE_URL=$NEON_DATABASE_URL npm run db:push
 - `recharts` - Chart visualization
 - `date-fns` - Date manipulation
 - `zod` - Runtime type validation
+
+## Recent Changes
+
+### January 2026
+- **Entry Editing**: Added ability to edit logged entries (calories, weight, macros) via edit button in the entries list
+- **Metrics Calculation**: Requires at least 2 weight entries before calculating weight-based metrics (maintenance calories, daily deficit, weight change)
+- **Weight Optional**: Weight field is now optional when logging entries
+- **Formula**: Daily Deficit = (weight change × 3500) / days; Maintenance = Avg Calories - Daily Deficit
+  - Negative deficit indicates weight loss (eating below maintenance)
+  - Maintenance clamped to minimum 800 cal/day to filter unrealistic data
