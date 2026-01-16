@@ -89,6 +89,8 @@ DATABASE_URL=$NEON_DATABASE_URL npm run db:push
 ## Recent Changes
 
 ### January 2026
+- **Weight Projection**: Weight trend chart now shows 2-week projected weight based on current trend (orange dashed line). Hover tooltips distinguish "Actual weight" (green) vs "Projected based on trend" (orange)
+- **All-Data Metrics**: Maintenance and deficit now calculated using ALL historical data for better long-term accuracy
 - **Keep Me Logged In**: Added "Keep me logged in" checkbox to login form for 30-day persistent sessions (default is 1 day)
 - **Entry Editing**: Added ability to edit logged entries (calories, weight, macros) via edit button in the entries list
 - **Metrics Calculation**: Requires at least 2 weight entries before calculating weight-based metrics (maintenance calories, daily deficit, weight change)
