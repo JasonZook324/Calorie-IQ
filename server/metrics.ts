@@ -44,8 +44,11 @@ export function calculateMetrics(entries: DailyEntry[]): CalculatedMetrics {
     ? last14Days.reduce((sum, e) => sum + e.calories, 0) / last14Days.length
     : null;
 
-  // Weight-based calculations only use entries WITH weight values within the last 7 days
+  // Weight-based calculations only use entries WITH weight values within the last 7 days (for 7-day weight change)
   const last7DaysWithWeight = last7Days.filter(e => e.weight !== null && e.weight !== undefined);
+  
+  // All-time weight entries for maintenance/deficit calculations (use ALL data for accuracy)
+  const allEntriesWithWeight = sortedEntries.filter(e => e.weight !== null && e.weight !== undefined);
 
   // Require at least 2 weight entries for weight-based calculations
   let rollingAvgWeight7Day: number | null = null;
@@ -53,33 +56,40 @@ export function calculateMetrics(entries: DailyEntry[]): CalculatedMetrics {
   let dailyDeficit: number | null = null;
   let maintenanceCalories: number | null = null;
 
+  // Calculate 7-day weight change for the "this week" display
   if (last7DaysWithWeight.length >= 2) {
-    // Calculate rolling average weight
     rollingAvgWeight7Day = last7DaysWithWeight.reduce((sum, e) => sum + (e.weight as number), 0) / last7DaysWithWeight.length;
+    const firstWeight7Day = last7DaysWithWeight[0].weight as number;
+    const lastWeight7Day = last7DaysWithWeight[last7DaysWithWeight.length - 1].weight as number;
+    weightChange7Day = lastWeight7Day - firstWeight7Day;
+  }
 
-    // Calculate weight change between first and last weight entry
-    const firstWeight = last7DaysWithWeight[0].weight as number;
-    const lastWeight = last7DaysWithWeight[last7DaysWithWeight.length - 1].weight as number;
-    weightChange7Day = lastWeight - firstWeight;
+  // Calculate maintenance and deficit using ALL available data for better accuracy
+  if (allEntriesWithWeight.length >= 2) {
+    const firstWeight = allEntriesWithWeight[0].weight as number;
+    const lastWeight = allEntriesWithWeight[allEntriesWithWeight.length - 1].weight as number;
+    const totalWeightChange = lastWeight - firstWeight;
 
-    // Calculate days between first and last weight entry (use ceiling to avoid inflated per-day values)
-    const firstDate = new Date(last7DaysWithWeight[0].date);
-    const lastDate = new Date(last7DaysWithWeight[last7DaysWithWeight.length - 1].date);
-    const daysInRange = Math.max(1, Math.ceil((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const firstDate = new Date(allEntriesWithWeight[0].date);
+    const lastDate = new Date(allEntriesWithWeight[allEntriesWithWeight.length - 1].date);
+    const totalDays = Math.max(1, Math.ceil((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)));
     
-    // Calculate daily deficit using the formula from spec:
     // Daily Deficit = (weight change × 3500) / days
-    // Negative value = deficit (weight loss), Positive value = surplus (weight gain)
-    dailyDeficit = (weightChange7Day * CALORIES_PER_POUND) / daysInRange;
+    // Uses all historical data for more accurate long-term estimate
+    dailyDeficit = (totalWeightChange * CALORIES_PER_POUND) / totalDays;
 
-    // Calculate maintenance calories using the formula from spec:
+    // Calculate average calories over the entire tracking period
+    const entriesInRange = sortedEntries.filter(e => {
+      const entryDate = new Date(e.date);
+      return entryDate >= firstDate && entryDate <= lastDate;
+    });
+    const avgCaloriesAllTime = entriesInRange.length > 0
+      ? entriesInRange.reduce((sum, e) => sum + e.calories, 0) / entriesInRange.length
+      : null;
+
     // Maintenance = Avg Calories - Daily Deficit
-    // For weight loss: deficit is negative, so maintenance = avg - (-deficit) = avg + |deficit|
-    // For weight gain: deficit is positive (surplus), so maintenance = avg - surplus
-    if (rollingAvgCalories7Day !== null) {
-      const calculatedMaintenance = rollingAvgCalories7Day - dailyDeficit;
-      // Only set maintenance if it's a realistic positive value (min 800 cal/day)
-      // Very low values indicate unrealistic data (e.g., large weight changes over short periods)
+    if (avgCaloriesAllTime !== null) {
+      const calculatedMaintenance = avgCaloriesAllTime - dailyDeficit;
       if (calculatedMaintenance >= 800) {
         maintenanceCalories = calculatedMaintenance;
       }
