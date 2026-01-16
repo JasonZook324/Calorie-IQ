@@ -20,14 +20,39 @@ const formSchema = z.object({
   date: z.date({
     required_error: "Date is required",
   }),
-  calories: z.string().min(1, "Calories is required").transform((v) => parseInt(v, 10)),
-  weight: z.string().min(1, "Weight is required").transform((v) => parseFloat(v)),
-  protein: z.string().optional().transform((v) => (v ? parseInt(v, 10) : null)),
-  carbs: z.string().optional().transform((v) => (v ? parseInt(v, 10) : null)),
-  fat: z.string().optional().transform((v) => (v ? parseInt(v, 10) : null)),
+  calories: z.union([z.string(), z.number()]).transform((v) => {
+    const num = typeof v === 'string' ? parseInt(v, 10) : v;
+    return isNaN(num) ? 0 : num;
+  }).refine((v) => v > 0, "Calories is required"),
+  weight: z.union([z.string(), z.number()]).transform((v) => {
+    const num = typeof v === 'string' ? parseFloat(v) : v;
+    return isNaN(num) ? 0 : num;
+  }).refine((v) => v > 0, "Weight is required"),
+  protein: z.union([z.string(), z.number(), z.null()]).optional().transform((v) => {
+    if (v === null || v === undefined || v === '') return null;
+    const num = typeof v === 'string' ? parseInt(v, 10) : v;
+    return isNaN(num) ? null : num;
+  }),
+  carbs: z.union([z.string(), z.number(), z.null()]).optional().transform((v) => {
+    if (v === null || v === undefined || v === '') return null;
+    const num = typeof v === 'string' ? parseInt(v, 10) : v;
+    return isNaN(num) ? null : num;
+  }),
+  fat: z.union([z.string(), z.number(), z.null()]).optional().transform((v) => {
+    if (v === null || v === undefined || v === '') return null;
+    const num = typeof v === 'string' ? parseInt(v, 10) : v;
+    return isNaN(num) ? null : num;
+  }),
 });
 
-type FormValues = z.input<typeof formSchema>;
+type FormValues = {
+  date: Date;
+  calories: string | number;
+  weight: string | number;
+  protein?: string | number | null;
+  carbs?: string | number | null;
+  fat?: string | number | null;
+};
 
 interface DailyEntryFormProps {
   onSuccess?: () => void;
@@ -209,6 +234,7 @@ export function DailyEntryForm({ onSuccess }: DailyEntryFormProps) {
                             placeholder="150"
                             data-testid="input-protein"
                             {...field}
+                            value={field.value ?? ""}
                           />
                         </FormControl>
                         <FormMessage />
@@ -228,6 +254,7 @@ export function DailyEntryForm({ onSuccess }: DailyEntryFormProps) {
                             placeholder="200"
                             data-testid="input-carbs"
                             {...field}
+                            value={field.value ?? ""}
                           />
                         </FormControl>
                         <FormMessage />
@@ -247,6 +274,7 @@ export function DailyEntryForm({ onSuccess }: DailyEntryFormProps) {
                             placeholder="70"
                             data-testid="input-fat"
                             {...field}
+                            value={field.value ?? ""}
                           />
                         </FormControl>
                         <FormMessage />
