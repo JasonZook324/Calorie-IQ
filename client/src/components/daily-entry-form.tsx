@@ -24,10 +24,11 @@ const formSchema = z.object({
     const num = typeof v === 'string' ? parseInt(v, 10) : v;
     return isNaN(num) ? 0 : num;
   }).refine((v) => v > 0, "Calories is required"),
-  weight: z.union([z.string(), z.number()]).transform((v) => {
+  weight: z.union([z.string(), z.number(), z.null()]).optional().transform((v) => {
+    if (v === null || v === undefined || v === '') return null;
     const num = typeof v === 'string' ? parseFloat(v) : v;
-    return isNaN(num) ? 0 : num;
-  }).refine((v) => v > 0, "Weight is required"),
+    return isNaN(num) ? null : num;
+  }),
   protein: z.union([z.string(), z.number(), z.null()]).optional().transform((v) => {
     if (v === null || v === undefined || v === '') return null;
     const num = typeof v === 'string' ? parseInt(v, 10) : v;
@@ -48,7 +49,7 @@ const formSchema = z.object({
 type FormValues = {
   date: Date;
   calories: string | number;
-  weight: string | number;
+  weight?: string | number | null;
   protein?: string | number | null;
   carbs?: string | number | null;
   fat?: string | number | null;
@@ -120,7 +121,7 @@ export function DailyEntryForm({ onSuccess }: DailyEntryFormProps) {
           <Plus className="h-5 w-5" />
           Log Today
         </CardTitle>
-        <CardDescription>Record your daily calories and weight</CardDescription>
+        <CardDescription>Record your daily calories and optional weight</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -193,7 +194,7 @@ export function DailyEntryForm({ onSuccess }: DailyEntryFormProps) {
                 name="weight"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Weight (lbs)</FormLabel>
+                    <FormLabel>Weight (lbs, optional)</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -201,6 +202,7 @@ export function DailyEntryForm({ onSuccess }: DailyEntryFormProps) {
                         placeholder="e.g., 180.5"
                         data-testid="input-weight"
                         {...field}
+                        value={field.value ?? ""}
                       />
                     </FormControl>
                     <FormMessage />

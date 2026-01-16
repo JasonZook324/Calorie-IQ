@@ -20,7 +20,7 @@ export const dailyEntries = pgTable("daily_entries", {
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   date: date("date").notNull(),
   calories: integer("calories").notNull(),
-  weight: real("weight").notNull(),
+  weight: real("weight"),
   protein: integer("protein"),
   carbs: integer("carbs"),
   fat: integer("fat"),
@@ -55,7 +55,7 @@ export const registerSchema = loginSchema;
 export const dailyEntryFormSchema = insertDailyEntrySchema.extend({
   date: z.string().min(1, "Date is required"),
   calories: z.number().min(0, "Calories must be positive").max(20000, "Calories seem too high"),
-  weight: z.number().min(20, "Weight must be at least 20").max(1000, "Weight seems too high"),
+  weight: z.number().min(20, "Weight must be at least 20").max(1000, "Weight seems too high").nullable().optional(),
   protein: z.number().min(0).max(1000).nullable().optional(),
   carbs: z.number().min(0).max(2000).nullable().optional(),
   fat: z.number().min(0).max(1000).nullable().optional(),
