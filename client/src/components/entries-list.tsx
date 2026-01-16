@@ -1,12 +1,15 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { Trash2, Loader2, Scale, Flame, Beef, Wheat, Droplet } from "lucide-react";
+import { Trash2, Loader2, Scale, Flame, Beef, Wheat, Droplet, Pencil } from "lucide-react";
 import { DailyEntry } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -20,9 +23,25 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export function EntriesList() {
   const { toast } = useToast();
+  const [editingEntry, setEditingEntry] = useState<DailyEntry | null>(null);
+  const [editForm, setEditForm] = useState({
+    calories: "",
+    weight: "",
+    protein: "",
+    carbs: "",
+    fat: "",
+  });
   
   const { data: entries, isLoading } = useQuery<DailyEntry[]>({
     queryKey: ["/api/entries"],
@@ -48,6 +67,74 @@ export function EntriesList() {
       });
     },
   });
+
+  const editMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Record<string, unknown> }) => {
+      const res = await apiRequest("PATCH", `/api/entries/${id}`, data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/metrics"] });
+      setEditingEntry(null);
+      toast({
+        title: "Entry updated",
+        description: "Your changes have been saved.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const openEditDialog = (entry: DailyEntry) => {
+    setEditingEntry(entry);
+    setEditForm({
+      calories: entry.calories.toString(),
+      weight: entry.weight?.toString() ?? "",
+      protein: entry.protein?.toString() ?? "",
+      carbs: entry.carbs?.toString() ?? "",
+      fat: entry.fat?.toString() ?? "",
+    });
+  };
+
+  const handleEditSubmit = () => {
+    if (!editingEntry) return;
+    
+    const data: Record<string, unknown> = {
+      calories: parseInt(editForm.calories, 10) || 0,
+    };
+    
+    if (editForm.weight) {
+      data.weight = parseFloat(editForm.weight);
+    } else {
+      data.weight = null;
+    }
+    
+    if (editForm.protein) {
+      data.protein = parseInt(editForm.protein, 10);
+    } else {
+      data.protein = null;
+    }
+    
+    if (editForm.carbs) {
+      data.carbs = parseInt(editForm.carbs, 10);
+    } else {
+      data.carbs = null;
+    }
+    
+    if (editForm.fat) {
+      data.fat = parseInt(editForm.fat, 10);
+    } else {
+      data.fat = null;
+    }
+    
+    editMutation.mutate({ id: editingEntry.id, data });
+  };
 
   if (isLoading) {
     return (
@@ -108,38 +195,49 @@ export function EntriesList() {
                         {format(parseISO(entry.date), "yyyy")}
                       </p>
                     </div>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground"
-                          data-testid={`button-delete-entry-${entry.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Entry</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you want to delete this entry? This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => deleteMutation.mutate(entry.id)}
-                            disabled={deleteMutation.isPending}
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground"
+                        onClick={() => openEditDialog(entry)}
+                        data-testid={`button-edit-entry-${entry.id}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground"
+                            data-testid={`button-delete-entry-${entry.id}`}
                           >
-                            {deleteMutation.isPending && (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            )}
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Entry</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete this entry? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteMutation.mutate(entry.id)}
+                              disabled={deleteMutation.isPending}
+                            >
+                              {deleteMutation.isPending && (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              )}
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -147,10 +245,12 @@ export function EntriesList() {
                       <Flame className="h-3 w-3" />
                       {entry.calories.toLocaleString()} cal
                     </Badge>
-                    <Badge variant="secondary" className="gap-1">
-                      <Scale className="h-3 w-3" />
-                      {entry.weight} lbs
-                    </Badge>
+                    {entry.weight && (
+                      <Badge variant="secondary" className="gap-1">
+                        <Scale className="h-3 w-3" />
+                        {entry.weight} lbs
+                      </Badge>
+                    )}
                     {entry.protein && (
                       <Badge variant="outline" className="gap-1">
                         <Beef className="h-3 w-3" />
@@ -176,6 +276,87 @@ export function EntriesList() {
           </ScrollArea>
         )}
       </CardContent>
+
+      <Dialog open={!!editingEntry} onOpenChange={(open) => !open && setEditingEntry(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Entry</DialogTitle>
+            <DialogDescription>
+              {editingEntry && format(parseISO(editingEntry.date), "EEEE, MMMM d, yyyy")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-calories">Calories</Label>
+                <Input
+                  id="edit-calories"
+                  type="number"
+                  value={editForm.calories}
+                  onChange={(e) => setEditForm({ ...editForm, calories: e.target.value })}
+                  data-testid="input-edit-calories"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-weight">Weight (lbs, optional)</Label>
+                <Input
+                  id="edit-weight"
+                  type="number"
+                  step="0.1"
+                  value={editForm.weight}
+                  onChange={(e) => setEditForm({ ...editForm, weight: e.target.value })}
+                  data-testid="input-edit-weight"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="edit-protein">Protein (g)</Label>
+                <Input
+                  id="edit-protein"
+                  type="number"
+                  value={editForm.protein}
+                  onChange={(e) => setEditForm({ ...editForm, protein: e.target.value })}
+                  data-testid="input-edit-protein"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-carbs">Carbs (g)</Label>
+                <Input
+                  id="edit-carbs"
+                  type="number"
+                  value={editForm.carbs}
+                  onChange={(e) => setEditForm({ ...editForm, carbs: e.target.value })}
+                  data-testid="input-edit-carbs"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-fat">Fat (g)</Label>
+                <Input
+                  id="edit-fat"
+                  type="number"
+                  value={editForm.fat}
+                  onChange={(e) => setEditForm({ ...editForm, fat: e.target.value })}
+                  data-testid="input-edit-fat"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingEntry(null)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleEditSubmit} 
+              disabled={editMutation.isPending}
+              data-testid="button-save-edit"
+            >
+              {editMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

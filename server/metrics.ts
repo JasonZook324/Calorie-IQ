@@ -23,6 +23,7 @@ export function calculateMetrics(entries: DailyEntry[]): CalculatedMetrics {
   const last7Days = sortedEntries.slice(-7);
   const last14Days = sortedEntries.slice(-14);
 
+  // Calorie averages use all entries
   const rollingAvgCalories7Day = last7Days.length > 0
     ? last7Days.reduce((sum, e) => sum + e.calories, 0) / last7Days.length
     : null;
@@ -31,29 +32,47 @@ export function calculateMetrics(entries: DailyEntry[]): CalculatedMetrics {
     ? last14Days.reduce((sum, e) => sum + e.calories, 0) / last14Days.length
     : null;
 
-  const rollingAvgWeight7Day = last7Days.length > 0
-    ? last7Days.reduce((sum, e) => sum + e.weight, 0) / last7Days.length
-    : null;
+  // Weight-based calculations only use entries WITH weight values
+  const entriesWithWeight = sortedEntries.filter(e => e.weight !== null && e.weight !== undefined);
+  const last7DaysWithWeight = entriesWithWeight.slice(-7);
 
+  // Require at least 2 weight entries for weight-based calculations
+  let rollingAvgWeight7Day: number | null = null;
   let weightChange7Day: number | null = null;
   let dailyDeficit: number | null = null;
   let maintenanceCalories: number | null = null;
 
-  if (last7Days.length >= 2) {
-    const firstWeight = last7Days[0].weight;
-    const lastWeight = last7Days[last7Days.length - 1].weight;
+  if (last7DaysWithWeight.length >= 2) {
+    // Calculate rolling average weight
+    rollingAvgWeight7Day = last7DaysWithWeight.reduce((sum, e) => sum + (e.weight as number), 0) / last7DaysWithWeight.length;
+
+    // Calculate weight change between first and last weight entry
+    const firstWeight = last7DaysWithWeight[0].weight as number;
+    const lastWeight = last7DaysWithWeight[last7DaysWithWeight.length - 1].weight as number;
     weightChange7Day = lastWeight - firstWeight;
 
-    const totalCalorieChange = weightChange7Day * CALORIES_PER_POUND;
+    // Calculate days between first and last weight entry (use ceiling to avoid inflated per-day values)
+    const firstDate = new Date(last7DaysWithWeight[0].date);
+    const lastDate = new Date(last7DaysWithWeight[last7DaysWithWeight.length - 1].date);
+    const daysInRange = Math.max(1, Math.ceil((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)));
     
-    const daysInRange = last7Days.length - 1;
-    if (daysInRange > 0) {
-      dailyDeficit = totalCalorieChange / daysInRange;
-    }
-  }
+    // Calculate daily deficit using the formula from spec:
+    // Daily Deficit = (weight change × 3500) / days
+    // Negative value = deficit (weight loss), Positive value = surplus (weight gain)
+    dailyDeficit = (weightChange7Day * CALORIES_PER_POUND) / daysInRange;
 
-  if (rollingAvgCalories7Day !== null && dailyDeficit !== null) {
-    maintenanceCalories = rollingAvgCalories7Day - dailyDeficit;
+    // Calculate maintenance calories using the formula from spec:
+    // Maintenance = Avg Calories - Daily Deficit
+    // For weight loss: deficit is negative, so maintenance = avg - (-deficit) = avg + |deficit|
+    // For weight gain: deficit is positive (surplus), so maintenance = avg - surplus
+    if (rollingAvgCalories7Day !== null) {
+      const calculatedMaintenance = rollingAvgCalories7Day - dailyDeficit;
+      // Only set maintenance if it's a realistic positive value (min 800 cal/day)
+      // Very low values indicate unrealistic data (e.g., large weight changes over short periods)
+      if (calculatedMaintenance >= 800) {
+        maintenanceCalories = calculatedMaintenance;
+      }
+    }
   }
 
   const weeklyDeficit = dailyDeficit !== null ? dailyDeficit * 7 : null;
